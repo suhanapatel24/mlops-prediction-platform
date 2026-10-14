@@ -1,0 +1,33 @@
+name: MLOps CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  train-test-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Train reproducibly
+        run: python -m src.train
+      - name: Run tests
+        run: pytest -q
+      - name: Validate metric floor
+        run: |
+          python - <<'PY'
+          import json
+          m=json.load(open("artifacts/metadata.json"))["metrics"]
+          assert m["accuracy"] >= 0.90, m
+          assert m["f1"] >= 0.90, m
+          print(m)
+          PY
+      - name: Build inference image
+        run: docker build -t mlops-prediction-platform:ci .
